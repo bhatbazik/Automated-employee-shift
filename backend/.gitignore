@@ -1,4 +1,4 @@
 .env
 node_modules
-seed.js
+generateSeedUsers.js
 seedUsers.json
