@@ -28,6 +28,14 @@ const getShiftTimes = (shiftType, date) => {
   return null;
 };
 
+// Simple shuffle function (Fisher-Yates)
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
 exports.getAllEmployees = async (req, res) => {
   try {
     const employees = await User.find({ role: "employee" }).select("-password");
@@ -58,7 +66,7 @@ exports.generateSchedule = async (req, res) => {
   try {
     const { startDate, endDate } = req.body;
 
-    // Fetch all employees and their availabilities for the period in one go
+    // Fetch all employees and availabilities for the period
     const employees = await User.find({ role: "employee" });
     const availabilities = await Availability.find({
       weekStartDate: {
@@ -67,9 +75,9 @@ exports.generateSchedule = async (req, res) => {
       },
     });
 
-    // Track number of shifts and the last shift's end time for each employee
+    // Track shift counts and last shift end time per employee
     const shiftCounts = {};
-    const employeeLastShiftEnd = {}; // Map of employeeId to Date of last shift's end
+    const employeeLastShiftEnd = {};
     employees.forEach((emp) => {
       shiftCounts[emp._id.toString()] = 0;
       employeeLastShiftEnd[emp._id.toString()] = null;
@@ -83,10 +91,7 @@ exports.generateSchedule = async (req, res) => {
       const shiftTypes = ["morning", "afternoon", "night"];
 
       for (const type of shiftTypes) {
-        const { start: newShiftStart, end: newShiftEnd } = getShiftTimes(
-          type,
-          currentDate
-        );
+        const { start: newShiftStart, end: newShiftEnd } = getShiftTimes(type, currentDate);
 
         // Filter employees available on this day for the given shift
         let availableEmployees = employees.filter((employee) => {
@@ -111,8 +116,11 @@ exports.generateSchedule = async (req, res) => {
         availableEmployees = availableEmployees.filter((emp) => {
           const lastEnd = employeeLastShiftEnd[emp._id.toString()];
           if (!lastEnd) return true;
-          return newShiftStart - lastEnd >= 12 * 3600 * 1000; // 12 hours in milliseconds
+          return newShiftStart - lastEnd >= 12 * 3600 * 1000;
         });
+
+        // Shuffle to randomize order
+        availableEmployees = shuffle(availableEmployees);
 
         // Sort by least assigned shifts for fairness
         availableEmployees.sort(
@@ -120,31 +128,32 @@ exports.generateSchedule = async (req, res) => {
             shiftCounts[a._id.toString()] - shiftCounts[b._id.toString()]
         );
 
-        // Ensure at least one senior employee is included, if available
+        // Ensure at least one senior is included (choose a random senior from the available ones)
         let selectedEmployees = [];
-        const seniors = availableEmployees.filter(
+        const availableSeniors = availableEmployees.filter(
           (emp) => emp.seniorityLevel === "senior"
         );
-        if (seniors.length > 0) {
-          selectedEmployees.push(seniors[0]._id);
-          // Remove the selected senior from the available list
+        if (availableSeniors.length > 0) {
+          const shuffledSeniors = shuffle(availableSeniors);
+          selectedEmployees.push(shuffledSeniors[0]._id);
+          // Remove the selected senior so they aren't chosen again
           availableEmployees = availableEmployees.filter(
-            (emp) => emp._id.toString() !== seniors[0]._id.toString()
+            (emp) => emp._id.toString() !== shuffledSeniors[0]._id.toString()
           );
         } else {
-          // Add a notification for employees if no senior is available
+          // Notify employees if no senior is available (optional)
           availableEmployees.forEach(async (emp) => {
             await User.findByIdAndUpdate(emp._id, {
               $push: {
                 notifications: {
-                  message: `No senior available for ${type} shift on ${currentDate.toDateString()}`,
+                  message: `No senior available for ${type} shift on ${currentDate.toDateString()}`
                 },
               },
             });
           });
         }
 
-        // Define maximum employees per shift (fixed value for simplicity)
+        // Define maximum employees per shift (for example, 3)
         const maxEmployees = 3;
         // Fill remaining slots from available employees
         for (let emp of availableEmployees) {
@@ -152,14 +161,14 @@ exports.generateSchedule = async (req, res) => {
           selectedEmployees.push(emp._id);
         }
 
-        // Update shift count and last shift end time for assigned employees
+        // Update shift counts and last shift end time for assigned employees
         selectedEmployees.forEach((empId) => {
           const empIdStr = empId.toString();
           shiftCounts[empIdStr]++;
           employeeLastShiftEnd[empIdStr] = newShiftEnd;
         });
 
-        // Create the shift if the minimum employee requirement is met (assumed 1 here)
+        // Create the shift if minimum requirement is met (minEmployees = 1)
         const minEmployees = 1;
         if (selectedEmployees.length >= minEmployees) {
           const shift = await Shift.create({
@@ -173,14 +182,11 @@ exports.generateSchedule = async (req, res) => {
           shifts.push(shift);
         }
       }
-      // Move to the next day
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
     res.status(200).json(shifts);
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error generating schedule", error: error.message });
+    res.status(500).json({ message: "Error generating schedule", error: error.message });
   }
 };

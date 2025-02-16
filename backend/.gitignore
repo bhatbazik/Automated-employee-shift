@@ -2,3 +2,5 @@
 node_modules
 generateSeedUsers.js
 seedUsers.json
+generateUsersData.js
+usersData.json
