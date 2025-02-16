@@ -28,7 +28,13 @@ const userSchema = new mongoose.Schema({
   maxHoursPerWeek: {
     type: Number,
     default: 40
-  }
+  },
+  notifications: [{
+    message: { type: String },
+    read: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+  }],
+  
 }, { timestamps: true });
 
 userSchema.pre('save', async function(next) {
