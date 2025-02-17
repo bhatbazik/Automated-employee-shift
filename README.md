@@ -47,12 +47,16 @@ After generating all the shifts, the function sends a response with a list of al
 If any error occurs during the process (e.g., database issues, invalid data), the function returns an error message with a 500 status code.
   ## requirements met
   Automated Shift Scheduling System
+
+  
 Senior Employee Inclusion: Ensures at least one senior employee is assigned to each shift.
 Shift Time Constraints: Prevents employees from working consecutive shifts longer than 8 hours and enforces a 12-hour gap between shifts.
 Weekly Shift Limit: Employees are capped at 5 shifts per week.
 Max Shift Capacity: The system ensures shifts are fully staffed without exceeding the maximum number of employees per shift.
 Fair Distribution: The system distributes shifts fairly, preventing employees from being overburdened with undesirable shifts (e.g., all night shifts).
+
 Dynamic Adjustments
+
 Update Handling: If employees change availability (shift preferences, max hours, days off), the system recalculates and adjusts shifts accordingly.
 No Unfilled Shifts: The system ensures shifts are filled without violating constraints.
 Notifications: Employees are notified when their preferences can't be fully met.
