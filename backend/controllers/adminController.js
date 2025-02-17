@@ -107,10 +107,14 @@ exports.generateSchedule = async (req, res) => {
           return !!empAvailability;
         });
 
-        // Enforce max 5 shifts per week per employee
-        availableEmployees = availableEmployees.filter(
-          (emp) => shiftCounts[emp._id.toString()] < 5
-        );
+        availableEmployees = availableEmployees.filter(emp => {
+          const avail = availabilities.find(a => a.employeeId.toString() === emp._id.toString());
+          // Use the maxWorkingHours from availability if provided, otherwise fallback to emp.maxHoursPerWeek
+          const maxHours = (avail && avail.maxWorkingHours) || (emp.maxHoursPerWeek || 40);
+          const maxShifts = Math.floor(maxHours / 8);
+          return shiftCounts[emp._id.toString()] < maxShifts;
+        });
+        
 
         // Enforce a minimum 12-hour gap from the employee's last assigned shift
         availableEmployees = availableEmployees.filter((emp) => {
