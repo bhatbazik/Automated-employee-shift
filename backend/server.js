@@ -16,7 +16,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173', // allow this origin
+  origin: 'https://automated-employee-shift-backend.onrender.com', // allow this origin
   credentials: true               // allow credentials (cookies, etc.)
 }));
 app.use(express.json());
