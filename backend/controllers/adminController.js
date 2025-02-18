@@ -106,14 +106,22 @@ exports.generateSchedule = async (req, res) => {
           const maxShifts = Math.min(Math.floor(maxHours / 8), 5);
           return shiftCounts[emp._id.toString()] < maxShifts;
         });
-
+      
         availableEmployees = availableEmployees.filter(emp => {
           const lastEnd = employeeLastShiftEnd[emp._id.toString()];
           return !lastEnd || newShiftStart - lastEnd >= 12 * 3600 * 1000;
         });
-        
-        if (availableEmployees.length === 0) continue;
-
+      
+        // New notification for no eligible employees
+        if (availableEmployees.length === 0) {
+          notifications.push({
+            message: `No eligible employees available for ${type} shift on ${currentDate.toDateString()}`,
+            date: new Date(),
+            status: "pending",
+          });
+          continue;
+        }
+      
         const availableSeniors = availableEmployees.filter(emp => emp.seniorityLevel === "senior");
         if (availableSeniors.length === 0) {
           notifications.push({
@@ -124,29 +132,38 @@ exports.generateSchedule = async (req, res) => {
           continue;
         }
         
+        // Existing logic: Shuffle, sort, and select employees
         shuffle(availableEmployees);
         availableEmployees.sort((a, b) => {
           return shiftCounts[a._id.toString()] - shiftCounts[b._id.toString()] || 
                  shiftTypeCounts[a._id.toString()][type] - shiftTypeCounts[b._id.toString()][type];
         });
-
         availableSeniors.sort((a, b) => shiftCounts[a._id.toString()] - shiftCounts[b._id.toString()]);
         const selectedSenior = availableSeniors[0];
         const selectedEmployees = [selectedSenior._id];
-
+      
         availableEmployees = availableEmployees.filter(emp => emp._id.toString() !== selectedSenior._id.toString());
         for (let emp of availableEmployees) {
           if (selectedEmployees.length >= maxEmployeesPerShift) break;
           selectedEmployees.push(emp._id);
         }
-
+      
+        // New notification: Partially filled shift
+        if (selectedEmployees.length < maxEmployeesPerShift) {
+          notifications.push({
+            message: `Shift on ${currentDate.toDateString()} (${type}) is partially filled (${selectedEmployees.length}/${maxEmployeesPerShift})`,
+            date: new Date(),
+            status: "pending",
+          });
+        }
+      
         selectedEmployees.forEach(empId => {
           const idStr = empId.toString();
           shiftCounts[idStr]++;
           shiftTypeCounts[idStr][type]++;
           employeeLastShiftEnd[idStr] = newShiftEnd;
         });
-
+      
         if (selectedEmployees.length >= 1) {
           shifts.push({ 
             date: new Date(currentDate), 
@@ -158,6 +175,7 @@ exports.generateSchedule = async (req, res) => {
           });
         }
       }
+      
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
