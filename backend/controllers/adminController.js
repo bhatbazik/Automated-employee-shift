@@ -1,7 +1,8 @@
 const User = require("../models/User");
 const Shift = require("../models/Shift");
 const Availability = require("../models/Availability");
-const Notification = require("../models/Notification"); // Assuming notifications are stored
+const Notification = require("../models/Notification");
+const ShiftSettings = require("../models/ShiftSettings");
 
 exports.getAllEmployees = async (req, res) => {
   try {
@@ -48,7 +49,6 @@ const getShiftTimes = (shiftType, date) => {
   } else if (shiftType === "afternoon") {
     return { start: new Date(baseDate.setHours(14, 0, 0, 0)), end: new Date(baseDate.setHours(22, 0, 0, 0)) };
   } else if (shiftType === "night") {
-    // Note: Adjust the night shift end time if needed.
     return { start: new Date(baseDate.setHours(22, 0, 0, 0)), 
              end: new Date(new Date(baseDate).setDate(baseDate.getDate() + 1)) };
   }
@@ -71,6 +71,11 @@ exports.generateSchedule = async (req, res) => {
       weekStartDate: { $gte: new Date(startDate), $lte: new Date(endDate) },
     });
     
+    // Retrieve shift settings without lean() so we get a full document
+    const settingsDoc = await ShiftSettings.findOne();
+    const maxEmployeesPerShift = settingsDoc ? Number(settingsDoc.maxEmployees) : 3;
+    console.log("Max employees per shift from settings:", maxEmployeesPerShift);  // Debug log
+
     const availabilityMap = buildAvailabilityMap(availabilities);
     const shiftCounts = {}, employeeLastShiftEnd = {}, shiftTypeCounts = {};
     employees.forEach((emp) => {
@@ -80,7 +85,7 @@ exports.generateSchedule = async (req, res) => {
       shiftTypeCounts[id] = { morning: 0, afternoon: 0, night: 0 };
     });
 
-    let shifts = []; // Changed to 'let' to reassign later
+    let shifts = [];
     const notifications = [];
     let currentDate = new Date(startDate);
     const endDateTime = new Date(endDate);
@@ -131,7 +136,7 @@ exports.generateSchedule = async (req, res) => {
 
         availableEmployees = availableEmployees.filter(emp => emp._id.toString() !== selectedSenior._id.toString());
         for (let emp of availableEmployees) {
-          if (selectedEmployees.length >= 3) break;
+          if (selectedEmployees.length >= maxEmployeesPerShift) break;
           selectedEmployees.push(emp._id);
         }
 
@@ -143,7 +148,14 @@ exports.generateSchedule = async (req, res) => {
         });
 
         if (selectedEmployees.length >= 1) {
-          shifts.push({ date: new Date(currentDate), type, employees: selectedEmployees, status: "confirmed", minEmployees: 1, maxEmployees: 3 });
+          shifts.push({ 
+            date: new Date(currentDate), 
+            type, 
+            employees: selectedEmployees, 
+            status: "confirmed", 
+            minEmployees: 1, 
+            maxEmployees: maxEmployeesPerShift 
+          });
         }
       }
       currentDate.setDate(currentDate.getDate() + 1);
