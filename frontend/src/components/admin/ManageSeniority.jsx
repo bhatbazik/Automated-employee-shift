@@ -12,7 +12,7 @@ const ManageSeniority = () => {
   const fetchEmployees = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:3000/api/admin/employees', { withCredentials: true });
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/admin/employees`, { withCredentials: true });
       setEmployees(res.data);
     } catch (err) {
       notifyError('Failed to fetch employees');
