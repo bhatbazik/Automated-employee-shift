@@ -16,9 +16,10 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: 'https://automated-employee-shift-backend.onrender.com', // allow this origin
+  origin: 'https://automated-employee-shift.onrender.com', // allow this frontend origin
   credentials: true               // allow credentials (cookies, etc.)
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser());
